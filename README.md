@@ -19,7 +19,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release --parallel
 
 # The executable will be in:
-#   physics-sim-build  (MSVC multi-config)
+#   physics-sim-build
 ```
 
 It is statically built so should run without the need of copying SFML DLLs
