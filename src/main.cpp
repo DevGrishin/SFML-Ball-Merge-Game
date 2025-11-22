@@ -24,7 +24,7 @@ int main() {
     unsigned int windowWidth = 540;
     unsigned int windowHeight = 1070;
     unsigned int sidepanel = 300;
-    sf::RenderWindow window(sf::VideoMode({windowWidth+sidepanel,windowHeight}), "Bouncing Balls Simulation", sf::Style::Default, settings);
+    sf::RenderWindow window(sf::VideoMode({windowWidth+sidepanel,windowHeight}), "Suika Game", sf::Style::Default, settings);
     window.setVerticalSyncEnabled(true);
 
     std::vector<Ball> balls;
@@ -32,20 +32,8 @@ int main() {
     std::vector<int> sizes = {15, 25, 45, 60, 80, 120, 160};
     std::vector<sf::Color> colors = {sf::Color::Red, sf::Color::Green, sf::Color::Blue, sf::Color::Yellow, sf::Color::Cyan, sf::Color::Magenta, sf::Color::White};
     balls.reserve(30);
-    // int numBalls = 0;
 
     srand(static_cast<unsigned int>(time(0)));
-    // for (int i = 0; i < numBalls; ++i) {
-    //     Ball ball;
-    //     ball.position = {static_cast<float>(rand() % (windowWidth-40) + 40), static_cast<float>(rand() % (windowHeight-40) + 40)};
-    //     ball.velocity = {static_cast<float>(rand() % 200 - 100), static_cast<float>(rand() % 200 - 100)};
-    //     ball.sizeId = static_cast<float>(rand() % 3);
-    //     ball.radius = sizes[ball.sizeId];
-    //     // ball.mass = pow(ball.radius, 2) * 3.14f * 2;
-    //     ball.mass = 1;
-    //     ball.color = sf::Color(rand() % 256, rand() % 256, rand() % 256);
-    //     balls.push_back(ball);
-    // }
 
     sf::Clock clock;
     sf::Clock timeout;
@@ -239,6 +227,7 @@ int main() {
         circle.setFillColor(nextBall.color);
         circle.setPosition(nextBall.position - sf::Vector2f(nextBall.radius, nextBall.radius));
         window.draw(circle);
+        
         for (const auto& ball : balls) {
             sf::CircleShape circle(ball.radius);
             circle.setFillColor(ball.color);

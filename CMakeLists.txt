@@ -25,33 +25,8 @@ if(MINGW)
     set(SFML_USE_STATIC_FREETYPE TRUE CACHE BOOL "" FORCE)
 endif()
 
-# Fetch ImGui
-FetchContent_Declare(
-    imgui
-    GIT_REPOSITORY https://github.com/ocornut/imgui.git
-    GIT_TAG v1.89.9
-)
-
-# Fetch ImGui-SFML
-FetchContent_Declare(
-    imgui-sfml
-    GIT_REPOSITORY https://github.com/SFML/imgui-sfml.git
-    GIT_TAG 2.6.x
-)
-
 # Make SFML and ImGui available first
-FetchContent_MakeAvailable(SFML imgui)
-
-# Get the ImGui source directory
-FetchContent_GetProperties(imgui)
-
-# Configure ImGui-SFML
-set(IMGUI_DIR ${imgui_SOURCE_DIR})
-set(IMGUI_SFML_FIND_SFML OFF)
-set(IMGUI_SFML_IMGUI_DEMO ON)
-
-# Make ImGui-SFML available
-FetchContent_MakeAvailable(imgui-sfml)
+FetchContent_MakeAvailable(SFML)
 
 add_executable(physics_sim WIN32
     src/main.cpp
@@ -69,7 +44,6 @@ target_include_directories(physics_sim PRIVATE
 
 target_link_libraries(physics_sim PRIVATE
     sfml-graphics
-    ImGui-SFML::ImGui-SFML
 )
 
 if (MSVC)
@@ -96,7 +70,7 @@ set_target_properties(physics_sim PROPERTIES
 )
 
 # Put exe into seperate folder at project root
-set(PHYSICS_SIM_RUNTIME_DIR "${CMAKE_SOURCE_DIR}/physics-sim-build")
+set(PHYSICS_SIM_RUNTIME_DIR "${CMAKE_SOURCE_DIR}/suika-game-build")
 set_target_properties(physics_sim PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${PHYSICS_SIM_RUNTIME_DIR}"
 )
