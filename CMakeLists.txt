@@ -58,7 +58,7 @@ endif()
 if(MINGW)
     # Statically link libstdc++ and libgcc so the produced .exe doesn't depend on MinGW runtime DLLs
     if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.13")
-        target_link_options(physics_sim PRIVATE "-static-libgcc" "-static-libstdc++")
+        target_link_options(physics_sim PRIVATE "-static-libgcc" "-static-libstdc++" "-static")
     else()
         # Fallback for older CMake
         set_target_properties(physics_sim PROPERTIES LINK_FLAGS "${LINK_FLAGS} -static-libgcc -static-libstdc++")
