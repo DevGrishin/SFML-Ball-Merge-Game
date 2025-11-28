@@ -2,9 +2,6 @@
 #include <SFML/Window.hpp>
 #include <SFML/System.hpp>
 #include <font_data.h>
-#include <random>
-#include <vector>
-#include <chrono>
 #include <iostream>
 #include <cmath>
 
@@ -21,12 +18,12 @@ struct Ball {
 int main() {
     sf::ContextSettings settings;
     settings.antialiasingLevel = 8;
-    unsigned int windowWidth = 540;
+    unsigned int windowWidth = 640;
     unsigned int windowHeight = 1070;
     unsigned int sidepanel = 300;
     sf::RenderWindow window(sf::VideoMode({windowWidth+sidepanel,windowHeight}), "Suika Game", sf::Style::Default, settings);
     window.setVerticalSyncEnabled(true);
-
+    
     std::vector<Ball> balls;
     std::vector<Ball> removedBalls;
     std::vector<int> sizes = {15, 25, 45, 60, 80, 120, 160};
@@ -41,6 +38,7 @@ int main() {
     const sf::Vector2f g = {0.f, 981.f};
     float bounceDamp = 0.1f;
     float linearDamp = 0.001f;
+    const float MAX_DT = 1.0f/60.0f;  // Cap at 60 FPS
     const float OFFSET = 0.0001f;
     const float MIN_SEP = 0.01f; 
     const float POS_COR = 0.8f;  
@@ -93,14 +91,16 @@ int main() {
     nextBall.radius = sizes[nextBall.sizeId];
     nextBall.color = colors[nextBall.sizeId];
 
+    sf::CircleShape nextCircle;
+
+
     while (window.isOpen())
     {
         dt = clock.restart().asSeconds();
-        const float MAX_DT = 1.0f/60.0f;  // Cap at 60 FPS
         dt = std::min(dt, MAX_DT);
         numBallsOut = 0;
-
         sf::Event event;
+        
         while (window.pollEvent(event))
         {
             if (event.type == sf::Event::Closed)
@@ -125,83 +125,103 @@ int main() {
             ball.position += ball.velocity * dt;
             ball.velocity -= ball.velocity * linearDamp;
 
+            const float VEL_EPS = 0.02f;
+
             // Floor
             if (ball.position.y + ball.radius > windowHeight - OFFSET) {
                 ball.position.y = windowHeight - ball.radius - OFFSET;
-                ball.velocity.y = (-ball.velocity.y) * bounceDamp;
-                if (std::abs(ball.velocity.y) < 0.0001f) ball.velocity.y = 0;
-                if (std::abs(ball.velocity.x) < 0.0001f) ball.velocity.x = 0;
-                ball.velocity.x *= (1.f - linearDamp*5.f);
+                ball.velocity.y = -ball.velocity.y * bounceDamp;
+                // reduce horizontal velocity on floor contact
+                ball.velocity.x *= (1.f - linearDamp * 5.f);
+                if (std::abs(ball.velocity.y) < VEL_EPS) ball.velocity.y = 0.f;
+                if (std::abs(ball.velocity.x) < VEL_EPS) ball.velocity.x = 0.f;
             }
+
             // Ceiling
-            if (ball.position.y - ball.radius < 0) {
-                if (!timeoutCheck){
+            if (ball.position.y - ball.radius < 0.f) {
+                if (!timeoutCheck) {
                     timeoutCheck = true;
                     timeout.restart();
                 }
                 numBallsOut++;
+                ball.position.y = ball.radius + OFFSET;
+                ball.velocity.y = -ball.velocity.y * bounceDamp;
+                if (std::abs(ball.velocity.y) < VEL_EPS) ball.velocity.y = 0.f;
             }
+
             // Right wall
             if (ball.position.x + ball.radius > windowWidth - OFFSET) {
                 ball.position.x = windowWidth - ball.radius - OFFSET;
-                ball.velocity.x = (-ball.velocity.x) * bounceDamp;
+                ball.velocity.x = -ball.velocity.x * bounceDamp;
+                if (std::abs(ball.velocity.x) < VEL_EPS) ball.velocity.x = 0.f;
             }
+
             // Left wall
-            if (ball.position.x - ball.radius < 0 + OFFSET) {
-                ball.position.x = 0 + ball.radius + OFFSET;
-                ball.velocity.x = (-ball.velocity.x) * bounceDamp;
+            if (ball.position.x - ball.radius < 0.f + OFFSET) {
+                ball.position.x = 0.f + ball.radius + OFFSET;
+                ball.velocity.x = -ball.velocity.x * bounceDamp;
+                if (std::abs(ball.velocity.x) < VEL_EPS) ball.velocity.x = 0.f;
             }
         }
         if (numBallsOut == 0){
             timeoutCheck = false;
         }
+        
+        {
+            const int SOLVER_ITERS = 10;
+            for (int iter = 0; iter < SOLVER_ITERS; ++iter) {
+                for (size_t i = 0; i < balls.size(); ++i) {
+                    if (removed[i]) continue;
+                    for (size_t j = i + 1; j < balls.size(); ++j) {
+                        if (removed[j]) continue;
 
-        for (size_t i = 0; i < balls.size(); ++i) {
-            if (removed[i]) continue;
-            for (size_t j = i + 1; j < balls.size(); ++j) {
-                if (removed[j]) continue;
+                        Ball &b1 = balls[i];
+                        Ball &b2 = balls[j];
 
-                Ball &b1 = balls[i];
-                Ball &b2 = balls[j];
+                        sf::Vector2f diff = b1.position - b2.position;
+                        float distSq = diff.x*diff.x + diff.y*diff.y;
+                        float radii = b1.radius + b2.radius;
 
-                sf::Vector2f diff = b1.position - b2.position;
-                float dist = std::sqrt(diff.x * diff.x + diff.y * diff.y);
-                float overlap = (b1.radius + b2.radius) - dist;
+                        if (distSq >= radii * radii) continue; // skip if no contact
+                        float dist = std::sqrt(distSq);
+                        float overlap = radii - dist;
 
-                if (overlap > MIN_SEP) {
-                    // merge when same size
-                    if (b1.sizeId == b2.sizeId && b1.sizeId < static_cast<int>(sizes.size()-1)) {
-                        if (b1.sizeId + 1 < static_cast<int>(sizes.size())) {
-                            b1.sizeId++;
-                            b1.radius = sizes[b1.sizeId];
-                            b1.position.x += (diff.x * 0.5f);
-                            b1.position.y += (diff.y * 0.5f);
-                            b1.color = colors[b1.sizeId];
-                            scorenum += 10 * b1.sizeId;
-                            score.setString(std::to_string(scorenum));
+                        // merge when same size
+                        if (b1.sizeId == b2.sizeId && b1.sizeId < static_cast<int>(sizes.size()-1)) {
+                            if (b1.sizeId + 1 < static_cast<int>(sizes.size())) {
+                                b1.sizeId++;
+                                b1.radius = sizes[b1.sizeId];
+                                b1.position.x += (diff.x * 0.5f);
+                                b1.position.y += (diff.y * 0.5f);
+                                b1.color = colors[b1.sizeId];
+                                scorenum += 10 * b1.sizeId;
+                                score.setString(std::to_string(scorenum));
+                            }
+                            removed[j] = 1;
+                            continue;
                         }
-                        removed[j] = 1; // mark b2 for removal
-                        continue;
+
+                        sf::Vector2f normal = (dist > 0.0f) ? (diff / dist) : sf::Vector2f(1.f, 0.f);
+
+                        float correctionMag = std::max(overlap - MIN_SEP, 0.f) * POS_COR;
+                        float invMass1 = 1.f / b1.mass;
+                        float invMass2 = 1.f / b2.mass;
+                        float invMassSum = invMass1 + invMass2;
+                        if (invMassSum > 0.f && correctionMag > 0.f) {
+                            sf::Vector2f correction = normal * (correctionMag / invMassSum);
+                            b1.position += correction * invMass1;
+                            b2.position -= correction * invMass2;
+                        }
+
+                        // velocity resolution
+                        float relVel = (b1.velocity.x - b2.velocity.x) * normal.x + (b1.velocity.y - b2.velocity.y) * normal.y;
+                        if (relVel >= 0.f) continue; // separating or resting
+                        float jimp = -(1.f + bounceDamp) * relVel;
+                        jimp /= invMassSum;
+                        sf::Vector2f impulse = jimp * normal;
+                        b1.velocity += impulse * invMass1;
+                        b2.velocity -= impulse * invMass2;
                     }
-                    // calculate impulse
-                    sf::Vector2f normal = (dist > 0.0f) ? (diff / dist) : sf::Vector2f(1.f, 0.f);
-
-                    float totalMass = b1.mass + b2.mass;
-                    float ratio1 = b1.mass / totalMass;
-                    float ratio2 = b2.mass / totalMass;
-
-                    b1.position += normal * overlap * ratio2 * POS_COR;
-                    b2.position -= normal * overlap * ratio1 * POS_COR;
-
-                    float relVel = (b1.velocity.x - b2.velocity.x) * normal.x + (b1.velocity.y - b2.velocity.y) * normal.y;
-                    if (relVel > 0) continue;
-
-                    float jimp = -(1.f + bounceDamp) * relVel;
-                    jimp /= (1.f / b1.mass) + (1.f / b2.mass);
-
-                    sf::Vector2f impulse = jimp * normal;
-                    b1.velocity += impulse / b1.mass;
-                    b2.velocity -= impulse / b2.mass;
                 }
             }
         }
@@ -223,10 +243,11 @@ int main() {
         window.draw(Lscore);
         window.draw(score); 
         window.draw(Lnext);
-        sf::CircleShape circle(nextBall.radius);
-        circle.setFillColor(nextBall.color);
-        circle.setPosition(nextBall.position - sf::Vector2f(nextBall.radius, nextBall.radius));
-        window.draw(circle);
+
+        nextCircle.setRadius(nextBall.radius);
+        nextCircle.setFillColor(nextBall.color);
+        nextCircle.setPosition(nextBall.position - sf::Vector2f(nextBall.radius, nextBall.radius));
+        window.draw(nextCircle);
         
         for (const auto& ball : balls) {
             sf::CircleShape circle(ball.radius);
